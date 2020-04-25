@@ -1,0 +1,42 @@
+Sample;Group;Age;Sex;ShortName;ShortPCA
+GSM1303144;YoungMale;Young;Male;YoungMale1;YM1
+GSM1303145;YoungFemale;Young;Female;YoungFemale1;YF1
+GSM1303146;YoungFemale;Young;Female;YoungFemale2;YF2
+GSM1303147;YoungMale;Young;Male;YoungMale2;YM2
+GSM1303148;YoungMale;Young;Male;YoungMale3;YM3
+GSM1303149;YoungFemale;Young;Female;YoungFemale3;YF3
+GSM1303150;YoungFemale;Young;Female;YoungFemale4;YF4
+GSM1303151;YoungMale;Young;Male;YoungMale4;YM4
+GSM1303152;YoungFemale;Young;Female;YoungFemale5;YF5
+GSM1303153;YoungFemale;Young;Female;YoungFemale6;YF6
+GSM1303154;YoungFemale;Young;Female;YoungFemale7;YF7
+GSM1303155;YoungMale;Young;Male;YoungMale5;YM5
+GSM1303156;MiddleAgeMale;Middle Age;Male;MiddleAgeMale1;MAM1
+GSM1303157;MiddleAgeFemale;Middle Age;Female;MiddleAgeFemale1;MAF1
+GSM1303158;MiddleAgeFemale;Middle Age;Female;MiddleAgeFemale2;MAF2
+GSM1303159;MiddleAgeMale;Middle Age;Male;MiddleAgeMale2;MAM2
+GSM1303160;MiddleAgeFemale;Middle Age;Female;MiddleAgeFemale3;MAF3
+GSM1303161;MiddleAgeMale;Middle Age;Male;MiddleAgeMale3;MAM3
+GSM1303162;MiddleAgeMale;Middle Age;Male;MiddleAgeMale4;MAM4
+GSM1303163;MiddleAgeFemale;Middle Age;Female;MiddleAgeFemale4;MAF4
+GSM1303164;MiddleAgeMale;Middle Age;Male;MiddleAgeMale5;MAM5
+GSM1303165;MiddleAgeMale;Middle Age;Male;MiddleAgeMale6;MAM6
+GSM1303166;NormalAgeFemale;Normal Age;Female;NormalAgeFemale1;NAF1
+GSM1303167;NormalAgeMale;Normal Age;Male;NormalAgeMale1;NAM1
+GSM1303168;NormalAgeFemale;Normal Age;Female;NormalAgeFemale2;NAF2
+GSM1303169;NormalAgeMale;Normal Age;Male;NormalAgeMale2;NAM2
+GSM1303170;NormalAgeMale;Normal Age;Male;NormalAgeMale3;NAM3
+GSM1303171;NormalAgeFemale;Normal Age;Female;NormalAgeFemale3;NAF3
+GSM1303172;NormalAgeMale;Normal Age;Male;NormalAgeMale4;NAM4
+GSM1303173;NormalAgeFemale;Normal Age;Female;NormalAgeFemale4;NAF4
+GSM1303174;NormalAgeMale;Normal Age;Male;NormalAgeMale5;NAM5
+GSM1303175;NormalAgeMale;Normal Age;Male;NormalAgeMale6;NAM6
+GSM1303176;NormalAgeFemale;Normal Age;Female;NormalAgeFemale5;NAF5
+GSM1303177;NormalAgeMale;Normal Age;Male;NormalAgeMale7;NAM7
+GSM1303178;NormalAgeMale;Normal Age;Male;NormalAgeMale8;NAM8
+GSM1303179;NormalAgeFemale;Normal Age;Female;NormalAgeFemale6;NAF6
+GSM1303180;NormalAgeFemale;Normal Age;Female;NormalAgeFemale7;NAF7
+GSM1303181;ExtremelyAgeFemale;Extremely Age;Female;ExtremelyAgeFemale1;EAF1
+GSM1303182;ExtremelyAgeMale;Extremely Age;Male;ExtremelyAgeMale1;EAM1
+GSM1303183;ExtremelyAgeFemale;Extremely Age;Female;ExtremelyAgeFemale2;EAF2
+GSM1303184;ExtremelyAgeFemale;Extremely Age;Female;ExtremelyAgeFemale3;EAF3

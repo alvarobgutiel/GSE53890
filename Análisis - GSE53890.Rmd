@@ -1,0 +1,504 @@
+---
+title: |
+  | Hippocampal gene expression patterns linked to late-life physical activity oppose age and AD-related transcriptional decline
+subtitle: "Análsis - GSE53890" 
+author: "Álvaro Ballesteros González"
+date: "March 2020"
+output:
+  pdf_document:
+    keep_tex: yes
+    toc: yes
+    toc_depth: 3
+    latex_engine: xelatex
+  html_document:
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+editor_options: 
+  chunk_output_type: console
+link-citations: yes
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,cache=TRUE)
+```
+
+```{r chunk setworking}
+
+dir.create("data")
+dir.create("results")
+dir.create("figures")
+
+library(viridis)
+
+````
+
+
+```{r chunk read}
+## ----ReadTargets-----------------------------------------------------------------------------------
+library(GEOquery)
+gse = getGEO("GSE53890")
+rawData = gse[[1]]
+
+targets = read.csv2("./data/targets.csv", header = TRUE, sep = ";") 
+
+knitr::kable(
+  targets, booktabs = TRUE,
+  caption = 'Content of the targets file used for the current analysis')
+
+library(oligo)
+library(Biobase)
+my.targets = read.AnnotatedDataFrame(file.path("./data","targets.csv"), 
+                                   header = TRUE, row.names = 1, 
+                                    sep=";") 
+phenoData(rawData) = my.targets
+
+rownames(pData(rawData)) = my.targets@data$ShortName
+colnames(rawData) = rownames(pData(rawData)) 
+ 
+head(rawData)
+
+````
+
+```{r groups}
+
+table(targets$Group)
+table(targets$Sex)
+table(targets$Age)
+
+````
+
+```{r chunk QC}
+
+## ----QCRaw, message=FALSE, warning=FALSE, eval=FALSE-----------------------------------------------
+ library(arrayQualityMetrics)
+ arrayQualityMetrics(rawData)
+
+```
+
+```{r chunk PCA}
+
+library(ggplot2)
+library(ggrepel)
+plotPCA3 <- function (datos, labels, factor, title, scale,colores, size = 1.5, glineas = 0.25) {
+  data <- prcomp(t(datos),scale=scale)
+  # plot adjustments
+  dataDf <- data.frame(data$x)
+  Group <- factor
+  loads <- round(data$sdev^2/sum(data$sdev^2)*100,1)
+  # main plot
+  p1 <- ggplot(dataDf,aes(x=PC1, y=PC2)) +
+    theme_classic() +
+    geom_hline(yintercept = 0, color = "gray70") +
+    geom_vline(xintercept = 0, color = "gray70") +
+    geom_point(aes(color = Group), alpha = 0.55, size = 3) +
+    coord_cartesian(xlim = c(min(data$x[,1])-5,max(data$x[,1])+5)) +
+    scale_fill_discrete(name = "Group")
+  # avoiding labels superposition
+  p1 + geom_text_repel(aes(y = PC2 + 0.25, label = labels),segment.size = 0.25, size = size) + 
+    labs(x = c(paste("PC1",loads[1],"%")),y=c(paste("PC2",loads[2],"%"))) +  
+    ggtitle(paste("Principal Component Analysis for: ",title,sep=" "))+ 
+    theme(plot.title = element_text(hjust = 0.5)) +
+    scale_color_manual(values=colores)
+  }
+
+
+## ----PCARaw, message=FALSE, fig.cap="Visualization of the two first Principal Components for raw data"----
+
+png("figures/PCA_RawData.png", res = 150, width = 8, height = 6, units = 'in')
+plotPCA3(exprs(rawData), labels = my.targets@data$ShortPCA, factor = my.targets@data$ShortPCA, 
+         title="PCA de los datos sin normalizar", scale = FALSE, size = 3, 
+         colores = viridis(41))
+dev.off()
+
+## ----saveIntensRaw, echo=FALSE, results='hide'-----------------------------------------------------
+png("figures/Intensity_RawData.png", res = 200, width =8, height = 5, units = 'in')
+boxplot(rawData, cex.axis=0.5, las=2,  which="all", 
+         col = viridis(41),
+         main="Distribución de las intensidades de los microarrays")
+dev.off()
+
+````
+
+```{r chunk nomr}
+
+## ----Normalization---------------------------------------------------------------------------------
+library(affyPLM)
+library(arrayQualityMetrics)
+eset_rma = normalize.ExpressionSet.quantiles(rawData)
+arrayQualityMetrics(eset_rma, outdir = file.path("./results", "QCDir.Norm"), force=TRUE)
+
+## ----savePCAnorm, echo=FALSE, results='hide'-------------------------------------------------------
+png("figures/PCA_NormData.png", res = 150, width = 8, height = 6, units = 'in')
+plotPCA3(exprs(eset_rma), labels = my.targets@data$ShortPCA, factor = my.targets@data$ShortPCA, 
+         title="PCA para los datos normalizados", scale = FALSE, size = 3, 
+         colores = viridis(41))
+dev.off()
+
+## ----saveIntensNorm, echo=FALSE, results='hide'----------------------------------------------------
+png("figures/Intensity_NormData.png", res = 200, width = 8, height = 5, units = 'in')
+boxplot(eset_rma, cex.axis=0.5, las=2,  which="all", 
+         col = viridis(41),
+         main="Densidad de las intensidades de los microarrays para los datos normalizados")
+dev.off()
+
+````
+
+```{r batch 1}
+## ----BatchDetection, message=FALSE, warning=FALSE--------------------------------------------------
+#load the library
+library(pvca)
+pData(eset_rma) = targets
+#select the threshold
+pct_threshold = 0.6
+#select the factors to analyze
+batch.factors  = c("Age",	"Sex")
+#run the analysis
+pvcaObj = pvcaBatchAssess (eset_rma, batch.factors, pct_threshold)
+
+## ----savePVCAplot, echo=FALSE, results='hide'------------------------------------------------------
+
+png("figures/PVCAplot.png", res = 200, width = 6, height = 5, units = 'in')
+bp <- barplot(pvcaObj$dat, xlab = "Effects",
+  ylab = "Weighted average proportion variance",
+  ylim= c(0,1.1),col = c("mediumorchid"), las=2,
+  main="Variabilidad de cada variable según estimación PVCA")
+axis(1, at = bp, labels = pvcaObj$label, cex.axis = 0.45, las=2)
+values = pvcaObj$dat
+new_values = round(values , 3)
+text(bp,pvcaObj$dat,labels = new_values, pos=3, cex = 0.5)
+dev.off()
+
+```
+
+```{r SD}
+
+## ----SDplot, fig.cap="Values of standard deviations allong all samples for all genes ordered from smallest to biggest"----
+sds = apply (exprs(eset_rma), 1, sd)
+sdsO = sort(sds)
+
+## ----saveSDplot, echo=FALSE, results='hide'--------------------------------------------------------
+png("figures/SDplot.png", res = 200, width = 5, height = 5, units = 'in')
+plot(1:length(sdsO), sdsO, main="Distribución de la variabilidad de los genes",
+     sub="Líneas verticales representan el 90 y 95% percentiles",
+     xlab="Gene index (from least to most variable)", ylab="Standard deviation")
+abline(v=length(sds)*c(0.9,0.95))
+dev.off()
+
+````
+
+
+```{r Filtering}
+## ----Filtering1, results='hide', message=FALSE-----------------------------------------------------
+library(genefilter)
+library(hgu133plus2.db)
+annotation(eset_rma) = "hgu133plus2.db"
+filtered <- nsFilter(eset_rma, 
+                     require.entrez = TRUE, remove.dupEntrez = TRUE,
+                     var.filter=TRUE, var.func=IQR, var.cutoff=0.75, 
+                     filterByQuantile=TRUE, feature.exclude = "^AFFX")
+
+
+## ----FilterResults1, results='hide', echo=FALSE----------------------------------------------------
+names(filtered)
+class(filtered$eset)
+
+
+## ----FilterResults2--------------------------------------------------------------------------------
+print(filtered$filter.log)
+eset_filtered <-filtered$eset
+
+
+## ----SaveData1, results='hide', message=FALSE------------------------------------------------------
+write.csv(exprs(eset_rma), file="./results/normalized.Data.csv")
+write.csv(exprs(eset_filtered), file="./results/normalized.Filtered.Data.csv")
+save(eset_rma, eset_filtered, file="./results/normalized.Data.Rda")
+
+````
+
+```{r chunk 14}
+
+## ----DesignMatrix, message=FALSE-------------------------------------------------------------------
+library(limma)
+designMat<- model.matrix(~0+Age, pData(eset_filtered))
+colnames(designMat) <- c("ExtremelyAge", "MiddleAge", "NormalAge","YoungAge")
+print(designMat)
+
+## ----setContrasts----------------------------------------------------------------------------------
+cont.matrix <- makeContrasts (ExtremelyAge_vs._YoungAge = ExtremelyAge - YoungAge,
+                              ExtremelyAge_vs._MiddleAge = ExtremelyAge - MiddleAge,
+                              ExtremelyAge_vs._NormalAge = ExtremelyAge - NormalAge,
+                              levels=designMat)
+print(cont.matrix)
+
+
+````
+
+```{r linear model}
+
+## ---- linearmodelfit-------------------------------------------------------------------------------
+fit<-lmFit(eset_filtered, designMat)
+fit.main<-contrasts.fit(fit, cont.matrix)
+fit.main<-eBayes(fit.main)
+class(fit.main)
+
+## ---- topTabs1-------------------------------------------------------------------------------------
+topTab_ExtremelyAge_vs._YoungAge = topTable (fit.main, number=nrow(fit.main), coef="ExtremelyAge_vs._YoungAge", adjust="fdr") 
+head(topTab_ExtremelyAge_vs._YoungAge)
+
+
+## ---- topTabs2-------------------------------------------------------------------------------------
+topTab_ExtremelyAge_vs._MiddleAge = topTable (fit.main, number=nrow(fit.main), coef="ExtremelyAge_vs._MiddleAge", adjust="fdr") 
+head(topTab_ExtremelyAge_vs._MiddleAge)
+
+
+## ---- topTabs3-------------------------------------------------------------------------------------
+topTab_ExtremelyAge_vs._NormalAge = topTable (fit.main, number=nrow(fit.main), coef="ExtremelyAge_vs._NormalAge", adjust="fdr") 
+head(topTab_ExtremelyAge_vs._NormalAge)
+
+````
+
+
+```{r gene annotation}
+library(kableExtra)
+
+## ----GeneAnnotation, message=FALSE, warning=FALSE--------------------------------------------------
+annotatedTopTable <- function(topTab, anotPackage)
+{
+topTab <- cbind(PROBEID=rownames(topTab), topTab)
+myProbes <- rownames(topTab)
+thePackage <- eval(parse(text = anotPackage))
+geneAnots <- select(thePackage, myProbes, c("SYMBOL", "ENTREZID", "GENENAME"))
+annotatedTopTab<- merge(x=geneAnots, y=topTab, by.x="PROBEID", by.y="PROBEID")
+return(annotatedTopTab)
+ }
+
+## ----annotateTopTables-----------------------------------------------------------------------------
+topAnnotated_ExtremelyAge_vs._YoungAge <- annotatedTopTable(topTab_ExtremelyAge_vs._YoungAge,
+anotPackage="hgu133plus2.db")
+
+topAnnotated_ExtremelyAge_vs._MiddleAge <- annotatedTopTable(topTab_ExtremelyAge_vs._MiddleAge,
+anotPackage="hgu133plus2.db")
+
+topAnnotated_ExtremelyAge_vs._NormalAge <- annotatedTopTable(topTab_ExtremelyAge_vs._NormalAge,
+anotPackage="hgu133plus2.db")
+
+write.csv(topAnnotated_ExtremelyAge_vs._YoungAge, file="./results/topAnnotated_ExtremelyAge_vs._YoungAge.csv")
+write.csv(topAnnotated_ExtremelyAge_vs._MiddleAge, file="./results/topAnnotated_ExtremelyAge_vs._MiddleAge.csv")
+write.csv(topAnnotated_ExtremelyAge_vs._NormalAge , file="./results/topAnnotated_ExtremelyAge_vs._NormalAge.csv")
+```
+
+```{r anot}
+## ----annotatedTop, echo=FALSE----------------------------------------------------------------------
+
+short_ExtremelyAge_vs._YoungAge = topAnnotated_ExtremelyAge_vs._YoungAge[order(abs(topAnnotated_ExtremelyAge_vs._YoungAge$logFC),decreasing=TRUE),]
+short_ExtremelyAge_vs._YoungAge = head(short_ExtremelyAge_vs._YoungAge[1:5,1:4])
+
+knitr::kable(
+  short_ExtremelyAge_vs._YoungAge , booktabs = TRUE,
+   caption = 'Annotations added to results "topTable" for the comparison "ExtremelyAge_vs._YoungAge "'
+   )
+show(short_ExtremelyAge_vs._YoungAge)
+
+short_ExtremelyAge_vs._MiddleAge = topAnnotated_ExtremelyAge_vs._MiddleAge[order(abs(topAnnotated_ExtremelyAge_vs._MiddleAge$logFC),decreasing=TRUE),]
+short_ExtremelyAge_vs._MiddleAge = head(short_ExtremelyAge_vs._MiddleAge[1:5,1:4])
+
+knitr::kable(
+  short_ExtremelyAge_vs._MiddleAge, booktabs = TRUE,
+   caption = 'Annotations added to results "topTable" for the comparison "ExtremelyAge_vs._MiddleAge"'
+   )
+show(short_ExtremelyAge_vs._MiddleAge)
+
+short_ExtremelyAge_vs._NormalAge = topAnnotated_ExtremelyAge_vs._NormalAge[order(abs(topAnnotated_ExtremelyAge_vs._NormalAge$logFC),decreasing=TRUE),]
+short_ExtremelyAge_vs._NormalAge = head(short_ExtremelyAge_vs._NormalAge[1:5,1:4])
+
+knitr::kable(
+  short_ExtremelyAge_vs._NormalAge, booktabs = TRUE,
+   caption = 'Annotations added to results "topTable" for the comparison "ExtremelyAge_vs._NormalAge"'
+   )
+show(short_ExtremelyAge_vs._NormalAge)
+
+``` 
+
+```{r volcanos}
+
+geneSymbols <- select(hgu133plus2.db, rownames(fit.main), c("SYMBOL"))
+SYMBOLS<- geneSymbols$SYMBOL
+  
+  ## ----saveVolcanos, echo=FALSE, results='hide'------------------------------------------------------
+png("figures/VolcanoPlot1.png", res = 300, width = 5, height = 5, units = 'in')
+volcanoplot(fit.main, coef=1, highlight=4, names=SYMBOLS, 
+            main=paste("Genes diferencialmente expresados", colnames(cont.matrix)[1], sep="\n")) 
+abline(v=c(-1,1))
+
+dev.off()
+
+png("figures/VolcanoPlot2.png", res = 300, width = 5, height = 5, units = 'in')
+volcanoplot(fit.main, coef=2, highlight=4, names=SYMBOLS, 
+            main=paste("Genes diferencialmente expresados", colnames(cont.matrix)[2], sep="\n")) 
+abline(v=c(-1,1))
+
+dev.off()
+
+png("figures/VolcanoPlot3.png", res = 300, width = 5, height = 5, units = 'in')
+volcanoplot(fit.main, coef=3, highlight=4, names=SYMBOLS, 
+            main=paste("Genes diferencialmente expresados", colnames(cont.matrix)[3], sep="\n")) 
+abline(v=c(-1,1))
+
+dev.off()
+
+````
+
+```{r decide test}
+
+## ----decideTests.1---------------------------------------------------------------------------------
+library(limma)
+res<-decideTests(fit.main, method="separate", adjust.method="fdr", p.value=0.1, lfc=1)
+
+
+## ----resumeDecideTests-----------------------------------------------------------------------------
+sum.res.rows<-apply(abs(res),1,sum)
+res.selected<-res[sum.res.rows!=0,] 
+print(summary(res))
+
+## ----vennPlot, echo=FALSE, results='hide'----------------------------------------------------------
+png("figures/VennPlot.png", res = 200, width = 8, height = 7, units = 'in')
+vennDiagram (res.selected[,1:3], cex=0.9)
+title("Genes en común en alguna o todas las comparaciones realizadas")
+dev.off()
+ 
+````
+
+```{r heatmap}
+## ----data4Heatmap----------------------------------------------------------------------------------
+probesInHeatmap <- rownames(res.selected)
+HMdata <- exprs(eset_filtered)[rownames(exprs(eset_filtered)) %in% probesInHeatmap,]
+
+geneSymbols <- select(hgu133plus2.db, rownames(HMdata), c("SYMBOL"))
+SYMBOLS<- geneSymbols$SYMBOL
+rownames(HMdata) <- SYMBOLS
+colnames(HMdata) <- eset_filtered$ShortPCA
+write.csv(HMdata, file = file.path("./results/data4Heatmap.csv"))
+
+
+## ----heatmapNoclustering, fig.cap="Heatmap for expression data without any grouping"---------------
+my_palette <- viridis(50, direction = -1)
+library(gplots)
+
+## ---- echo=FALSE,  results='hide'------------------------------------------------------------------
+png("figures/Heatmap1_no_grouping.png", res = 300, width = 10, height = 10, units = 'in')
+heatmap.2(HMdata,
+          Rowv = FALSE,
+          Colv = FALSE,
+          dendrogram = "none",
+          main = "Differentially expressed genes \n FDR < 0,1, logFC >=1 \n No groups" ,
+          scale = "row",
+          col = my_palette,
+          sepcolor = "white",
+          sepwidth = c(0.05,0.05),
+          cexRow = 0.5,
+          cexCol = 0.9,
+          key = TRUE,
+          keysize = 1.5,
+          density.info = "histogram",
+          ColSideColors = viridis(41),
+          tracecol = NULL,
+          srtCol = 30)
+dev.off()
+
+
+png("figures/Heatmap2_grouping.png", res = 300, width = 10, height =10, units = 'in')
+heatmap.2(HMdata,
+          Rowv = TRUE,
+          Colv = TRUE,
+          main = "Differentially expressed genes \n FDR < 0,1, logFC >=1 \n Grouping",
+          scale = "row",
+          col = my_palette,
+          sepcolor = "white",
+          sepwidth = c(0.05,0.05),
+          cexRow = 0.5,
+          cexCol = 0.9,
+          key = TRUE,
+          keysize = 1.5,
+          density.info = "histogram",
+          ColSideColors = viridis(41),
+          tracecol = NULL,
+          dendrogram = "both",
+          srtCol = 30)
+dev.off()
+
+```
+
+```{r gene set enrichment, include=FALSE}
+
+whichGenes_EV_YA= topTab_ExtremelyAge_vs._YoungAge["adj.P.Val"]<0.15
+selectedIDs_EV_YA = rownames(topTab_ExtremelyAge_vs._YoungAge)[whichGenes_EV_YA]
+EntrezIDs_EV_YA = select(hgu133plus2.db, selectedIDs_EV_YA, c("ENTREZID"))
+EntrezIDs_EV_YA = EntrezIDs_EV_YA$ENTREZID
+listOfSelected_EAvsYA = EntrezIDs_EV_YA
+
+EAvsYA_cluProf = enrichGO(listOfSelected_EAvsYA, OrgDb=org.Hs.eg.db, pvalueCutoff=1, qvalueCutoff=1)
+
+whichGenes_EA_MA = topTab_ExtremelyAge_vs._MiddleAge ["adj.P.Val"]<0.15
+selectedIDs_EA_MA = rownames(topTab_ExtremelyAge_vs._MiddleAge)[whichGenes_EA_MA]
+EntrezIDs_EA_MA = select(hgu133plus2.db, selectedIDs_EA_MA, c("ENTREZID"))
+EntrezIDs_EA_MA = EntrezIDs_EA_MA$ENTREZID
+listOfSelected_EAvsMA = EntrezIDs_EA_MA
+
+EAvsMA_cluProf = enrichGO(listOfSelected_EAvsMA, OrgDb=org.Hs.eg.db, pvalueCutoff=1, qvalueCutoff=1)
+
+whichGenes_EA_NA = topTab_ExtremelyAge_vs._NormalAge ["adj.P.Val"]<0.15
+selectedIDs_EA_NA = rownames(topTab_ExtremelyAge_vs._NormalAge)[whichGenes_EA_NA]
+EntrezIDs_EA_NA = select(hgu133plus2.db, selectedIDs_EA_NA, c("ENTREZID"))
+EntrezIDs_EA_NA = EntrezIDs_EA_NA$ENTREZID
+listOfSelected_EAvsNA = EntrezIDs_EA_NA
+
+EAvsNA_cluProf = enrichGO(listOfSelected_EAvsNA, OrgDb=org.Hs.eg.db, pvalueCutoff=1, qvalueCutoff=1)
+
+````
+
+```{r plots}
+png(filename="./figures/dotplot_EAvsYA1.png",res = 300,width = 8, height=8,units="in")
+dotplot(EAvsYA_cluProf, showCategory=15, title="Funciones más representadas en el listado de genes alterados \n Extremely Aged vs Young Age")+ scale_color_viridis(direction=-1)
+dev.off()
+
+png(filename="./figures/dotplot_EAvsMA.png",res = 300,width = 8, height=8,units="in")
+dotplot(EAvsMA_cluProf, showCategory=15, title="Funciones más representadas en el listado de genes alterados \n Extremely Aged vs Middle Age")+ scale_color_viridis(direction=-1)
+dev.off()
+
+png(filename="./figures/dotplot_EAvsNA.png",res = 300,width = 8, height=8,units="in")
+dotplot(EAvsNA_cluProf, showCategory=15, title="Funciones más representadas en el listado de genes alterados \n Extremely Aged vs Middle Age")+ scale_color_viridis(direction=-1)
+dev.off()
+
+```
+
+```{r gsego}
+
+geneList_EAvsYA = topTab_ExtremelyAge_vs._YoungAge$logFC
+names(geneList_EAvsYA) = as.character(topTab_ExtremelyAge_vs._YoungAge$ENTREZ_GENE_ID)
+geneList_EAvsYA = sort(geneList_EAvsYA, decreasing = TRUE)
+
+gsecc_EAvsYA = gseGO(geneList=geneList_EAvsYA, ont="CC", OrgDb=org.Hs.eg.db, verbose=T)
+
+geneList_EAvsMA = topTab_ExtremelyAge_vs._MiddleAge $logFC
+names(geneList_EAvsMA) = as.character(topTab_ExtremelyAge_vs._MiddleAge$ENTREZ_GENE_ID)
+geneList_EAvsMA = sort(geneList_EAvsMA, decreasing = TRUE)
+
+gsecc_EAvsMA = gseGO(geneList=geneList_EAvsMA, ont="CC", OrgDb=org.Hs.eg.db, verbose=T)
+
+geneList_EAvsNA = topTab_ExtremelyAge_vs._NormalAge$logFC
+names(geneList_EAvsNA) = as.character(topTab_ExtremelyAge_vs._NormalAge$ENTREZ_GENE_ID)
+geneList_EAvsNA = sort(geneList_EAvsNA, decreasing = TRUE)
+
+gsecc_EAvsNA = gseGO(geneList=geneList_EAvsNA, ont="CC", OrgDb=org.Hs.eg.db, verbose=T)
+
+png(filename="./figures/dotplot_gsea_EAvsYA.png",res = 300,width = 8, height=8,units="in")
+dotplot(gsecc_EAvsYA, showCategory=15, title="Resultados GSEA \n Extremely Aged vs Young Age")+ scale_color_viridis(direction=-1)
+dev.off()
+
+png(filename="./figures/dotplot_gsea_EAvsMA.png",res = 300,width = 8, height=8,units="in")
+dotplot(gsecc_EAvsMA, showCategory=15,title="Resultados GSEA \n Extremely Aged vs Middle Age")+ scale_color_viridis(direction=-1)
+dev.off()
+
+
+```
